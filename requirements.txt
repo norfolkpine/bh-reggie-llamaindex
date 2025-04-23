@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+llama-index
+sqlalchemy
+psycopg2-binary
+python-docx
+pdfplumber
+openai
+llama-index-readers-gcs
+llama-index-readers-google
+llama-index-cloud-sql-pg
+llama-index-llms-vertex
+llama-index-vector-stores-postgres
