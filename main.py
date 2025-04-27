@@ -1,6 +1,6 @@
 from fastapi import FastAPI, HTTPException
+from contextlib import asynccontextmanager
 from pydantic import BaseModel
-from dotenv import load_dotenv
 import os
 import logging
 from tqdm import tqdm
@@ -9,8 +9,36 @@ from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.postgres import PGVectorStore
 from llama_index.core import VectorStoreIndex, StorageContext, Document
 
-# === Load environment variables ===
-load_dotenv()
+def load_env(secret_id=None, env_file=".env"):
+    """Load environment variables from Secret Manager or local .env file."""
+    try:
+        if secret_id and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+            from google.cloud import secretmanager
+            client = secretmanager.SecretManagerServiceClient()
+            project_id = os.getenv("GCP_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", "bh-crypto"))
+            name = f"projects/{project_id}/secrets/{secret_id}/versions/latest"
+            response = client.access_secret_version(request={"name": name})
+            env_content = response.payload.data.decode("utf-8")
+            for line in env_content.splitlines():
+                if line and not line.startswith("#"):
+                    key, value = line.split("=", 1)
+                    os.environ[key] = value
+            print(f"✅ Loaded environment from Secret Manager: {secret_id}")
+            return
+    except Exception as e:
+        print(f"⚠️ Failed to load secret '{secret_id}', falling back to local env: {e}")
+
+    from dotenv import load_dotenv
+    if load_dotenv(env_file):
+        print(f"✅ Loaded environment from {env_file}")
+    else:
+        print(f"⚠️ Failed to load {env_file}")
+
+
+# Load env (Secret Manager first, fallback to .env)
+load_env(secret_id="llamaindex-ingester-env")
+
+# === Config Variables ===
 CREDENTIALS_PATH = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
 GCS_BUCKET = os.getenv("GCS_BUCKET")
 POSTGRES_URL = os.getenv("POSTGRES_URL")
@@ -26,18 +54,25 @@ logger = logging.getLogger("llama_index")
 logger.setLevel(logging.INFO)
 
 # === FastAPI App ===
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    load_env(secret_id="llamaindex-ingester-env")
+    yield
+
+app = FastAPI(lifespan=lifespan)
 
 # === Request Models ===
 class IngestRequest(BaseModel):
     gcs_prefix: str
     file_limit: int = 1
+    vector_table_name: str
 
 class FileIngestRequest(BaseModel):
-    file_path: str  # exact GCS key like "reggie-data/global/library/C2025C00029VOL01.pdf"
+    file_path: str
+    vector_table_name: str
 
 # === Common indexing logic ===
-def index_documents(docs, source: str):
+def index_documents(docs, source: str, vector_table_name: str):
     if not docs:
         raise HTTPException(status_code=404, detail=f"No documents found for {source}")
 
@@ -47,7 +82,7 @@ def index_documents(docs, source: str):
     vector_store = PGVectorStore(
         connection_string=POSTGRES_URL,
         async_connection_string=POSTGRES_URL.replace("postgresql://", "postgresql+asyncpg://"),
-        table_name=VECTOR_TABLE_NAME,
+        table_name=vector_table_name,
         embed_dim=EMBED_DIM,
         schema_name=SCHEMA_NAME
     )
@@ -61,10 +96,10 @@ def index_documents(docs, source: str):
     return {
         "indexed_documents": len(docs),
         "source": source,
-        "vector_table": VECTOR_TABLE_NAME
+        "vector_table": vector_table_name
     }
 
-# === Ingest by prefix (bulk mode) ===
+# === Ingest by GCS prefix (bulk mode) ===
 @app.post("/ingest-gcs")
 async def ingest_gcs_docs(payload: IngestRequest):
     try:
@@ -84,13 +119,12 @@ async def ingest_gcs_docs(payload: IngestRequest):
             try:
                 result = reader.load_resource(name)
                 loaded_docs = result if isinstance(result, list) else [result]
-                for doc in loaded_docs:
-                    logger.info(f"✅ Loaded document: {name} | Size: {len(doc.text)} characters")
+                # consider adding custom metadata doc.metadata {}
                 documents.extend(loaded_docs)
             except Exception as e:
                 logger.warning(f"❌ Failed to load {name}: {str(e)}")
 
-        return index_documents(documents, source=payload.gcs_prefix)
+        return index_documents(documents, source=payload.gcs_prefix, vector_table_name=payload.vector_table_name)
 
     except Exception as e:
         logger.error("❌ Ingestion error", exc_info=True)
@@ -108,12 +142,13 @@ async def ingest_single_file(payload: FileIngestRequest):
         )
 
         result = reader.load_data()
+        # consider adding custom metadata doc.metadata {}
         documents = result if isinstance(result, list) else [result]
 
         for doc in documents:
             logger.info(f"✅ Parsed document: {payload.file_path} | Size: {len(doc.text)} characters")
 
-        return index_documents(documents, source=payload.file_path)
+        return index_documents(documents, source=payload.file_path, vector_table_name=payload.vector_table_name)
 
     except Exception as e:
         logger.error("❌ Single-file ingestion error", exc_info=True)
@@ -124,7 +159,7 @@ async def ingest_single_file(payload: FileIngestRequest):
 async def root():
     return {"message": "LlamaIndex GCS ingestion service is alive!"}
 
-# === Run server if standalone (local dev) ===
+# === Run server locally (for dev) ===
 if __name__ == "__main__":
     import uvicorn
     port = int(os.getenv("PORT", 8080))

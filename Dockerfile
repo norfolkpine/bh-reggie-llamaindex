@@ -1,21 +1,17 @@
-# Use Python slim image
-FROM python:3.11-slim
+# === Build stage ===
+FROM python:3.10-slim AS builder
 
-# Set working directory
 WORKDIR /app
 
-# Copy code and requirements first (better caching)
-COPY requirements.txt /app/requirements.txt
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Install dependencies
-RUN pip install --upgrade pip
-RUN pip install -r requirements.txt
+# === Final runtime stage ===
+FROM python:3.10-slim
 
-# Copy the rest of the application code
-COPY . /app
+WORKDIR /app
 
-# Expose port (Cloud Run default)
-EXPOSE 8080
+COPY --from=builder /usr/local /usr/local
+COPY . .
 
-# Run the app with Uvicorn
 CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080"]

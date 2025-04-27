@@ -1,16 +1,52 @@
+# === Cloud Build Steps ===
 steps:
+  # Step 1: Build Docker image
   - name: 'gcr.io/cloud-builders/docker'
-    args: ['build', '-t', 'gcr.io/$PROJECT_ID/rag-ingest', '.']
-
-  - name: 'gcr.io/cloud-builders/gcloud'
+    id: 'Build Docker Image'
     args:
-      - run
-      - deploy
-      - rag-ingest
-      - --image=gcr.io/$PROJECT_ID/rag-ingest
-      - --platform=managed
-      - --region=us-central1
-      - --allow-unauthenticated
-      - --set-env-vars=GCS_BUCKET=your-bucket-name,POSTGRES_URL=postgresql+psycopg2://user:password@host:5432/dbname,OPENAI_API_KEY=sk-xxx
+      - 'build'
+      - '-t'
+      - 'gcr.io/$PROJECT_ID/llamaindex-ingestion'
+      - '.'
+
+  # Step 2: Push Docker image to Container Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    id: 'Push Docker Image'
+    args:
+      - 'push'
+      - 'gcr.io/$PROJECT_ID/llamaindex-ingestion'
+
+  # Step 3: Deploy to Cloud Run — only after successful build and push
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    id: 'Deploy to Cloud Run'
+    entrypoint: 'gcloud'
+    args:
+      - 'run'
+      - 'deploy'
+      - 'llamaindex-ingestion'
+      - '--image'
+      - 'gcr.io/$PROJECT_ID/llamaindex-ingestion'
+      - '--region'
+      - 'us-central1'
+      - '--platform'
+      - 'managed'
+      - '--service-account'
+      - 'gh-actions@bh-crypto.iam.gserviceaccount.com'
+      - '--memory'
+      - '2Gi'
+      - '--timeout'
+      - '900'
+      - '--max-instances'
+      - '2'
+      - '--min-instances'
+      - '0'
+      - '--allow-unauthenticated'
+      - '--set-env-vars'
+      - 'GCP_PROJECT=$PROJECT_ID'
+
+# === Only build this image ===
 images:
-  - gcr.io/$PROJECT_ID/rag-ingest
+  - 'gcr.io/$PROJECT_ID/llamaindex-ingestion'
+
+# === OPTIONAL — add timeouts to be safe ===
+timeout: 1200s  # (20 minutes build max)
