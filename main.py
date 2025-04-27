@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 from pydantic import BaseModel
 import os
 import logging
+from typing import Optional
 from tqdm import tqdm
 from llama_index.readers.gcs import GCSReader
 from llama_index.embeddings.openai import OpenAIEmbedding
@@ -104,11 +105,16 @@ def index_documents(docs, source: str, vector_table_name: str):
 async def ingest_gcs_docs(payload: IngestRequest):
     try:
         logger.info(f"🔎 Starting GCS ingestion for prefix: {payload.gcs_prefix}")
-        reader = GCSReader(
-            bucket=GCS_BUCKET,
-            prefix=payload.gcs_prefix,
-            service_account_key_path=CREDENTIALS_PATH
-        )
+        reader_kwargs = {
+            "bucket": GCS_BUCKET,
+            "prefix": payload.gcs_prefix
+        }
+
+        if CREDENTIALS_PATH and os.path.exists(CREDENTIALS_PATH):
+            reader_kwargs["service_account_key_path"] = CREDENTIALS_PATH
+
+        reader = GCSReader(**reader_kwargs)
+
 
         resources = reader.list_resources()
         if payload.file_limit:
@@ -137,11 +143,16 @@ async def ingest_gcs_docs(payload: IngestRequest):
 async def ingest_single_file(payload: FileIngestRequest):
     try:
         logger.info(f"📄 Ingesting single file: {payload.file_path}")
-        reader = GCSReader(
-            bucket=GCS_BUCKET,
-            key=payload.file_path,
-            service_account_key_path=CREDENTIALS_PATH
-        )
+        reader_kwargs = {
+            "bucket": GCS_BUCKET,
+            "key": payload.file_path
+        }
+
+        if CREDENTIALS_PATH and os.path.exists(CREDENTIALS_PATH):
+            reader_kwargs["service_account_key_path"] = CREDENTIALS_PATH
+
+        reader = GCSReader(**reader_kwargs)
+
 
         result = reader.load_data()
         # consider adding custom metadata doc.metadata {}
