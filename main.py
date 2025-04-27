@@ -64,7 +64,7 @@ app = FastAPI(lifespan=lifespan)
 # === Request Models ===
 class IngestRequest(BaseModel):
     gcs_prefix: str
-    file_limit: int = 1
+    file_limit: Optional[int] = None
     vector_table_name: str
 
 class FileIngestRequest(BaseModel):
@@ -110,7 +110,9 @@ async def ingest_gcs_docs(payload: IngestRequest):
             service_account_key_path=CREDENTIALS_PATH
         )
 
-        resources = reader.list_resources()[:payload.file_limit]
+        resources = reader.list_resources()
+        if payload.file_limit:
+            resources = resources[:payload.file_limit]
         logger.info(f"📦 Found {len(resources)} resources")
 
         documents = []
