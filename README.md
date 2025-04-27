@@ -244,3 +244,17 @@ https://medium.com/@abul.aala.fareh/customizing-documents-in-llamaindex-357de97d
 # ✅ That's it.
 Happy Ingesting 🚀
 
+
+
+curl -X POST https://llamaindex-ingestion-776892553125.us-central1.run.app/ingest-gcs \
+  -H "Content-Type: application/json" \
+  -d '{
+    "gcs_prefix": "global/library",
+    "file_limit": 1,
+    "vector_table_name": "pdf_documents"
+  }'
+
+  class IngestRequest(BaseModel):
+    gcs_prefix: str
+    file_limit: int = 1
+    vector_table_name: str

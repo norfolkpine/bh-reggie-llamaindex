@@ -12,7 +12,7 @@ from llama_index.core import VectorStoreIndex, StorageContext, Document
 def load_env(secret_id=None, env_file=".env"):
     """Load environment variables from Secret Manager or local .env file."""
     try:
-        if secret_id and os.getenv("GOOGLE_APPLICATION_CREDENTIALS"):
+        if secret_id:
             from google.cloud import secretmanager
             client = secretmanager.SecretManagerServiceClient()
             project_id = os.getenv("GCP_PROJECT", os.getenv("GOOGLE_CLOUD_PROJECT", "bh-crypto"))
