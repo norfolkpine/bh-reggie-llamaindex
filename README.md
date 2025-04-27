@@ -48,3 +48,10 @@ print(res.json())
 ```
 
 https://github.com/googleapis/llama-index-cloud-sql-pg-python/blob/main/samples/llama_index_vector_store.ipynb
+
+## Setup instructions
+```
+python3.12 -m venv llama_env
+source llama_env/bin/activate
+pip install -r dev-requirements.txt
+```
