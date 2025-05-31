@@ -6,6 +6,8 @@ import logging
 from typing import Optional
 from tqdm import tqdm
 from llama_index.readers.gcs import GCSReader
+from llama_index.readers.json import JSONReader # Added
+from custom_readers import CustomXmlReader # Added
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.vector_stores.postgres import PGVectorStore
 from llama_index.core import VectorStoreIndex, StorageContext, Document
@@ -105,9 +107,15 @@ def index_documents(docs, source: str, vector_table_name: str):
 async def ingest_gcs_docs(payload: IngestRequest):
     try:
         logger.info(f"🔎 Starting GCS ingestion for prefix: {payload.gcs_prefix}")
+        # Configure custom file extractors to ensure JSON and XML are parsed correctly
+        file_extractor = {
+            ".json": JSONReader(),
+            ".xml": CustomXmlReader()
+        }
         reader_kwargs = {
             "bucket": GCS_BUCKET,
-            "prefix": payload.gcs_prefix
+            "prefix": payload.gcs_prefix,
+            "file_extractor": file_extractor
         }
 
         if CREDENTIALS_PATH and os.path.exists(CREDENTIALS_PATH):
@@ -143,9 +151,15 @@ async def ingest_gcs_docs(payload: IngestRequest):
 async def ingest_single_file(payload: FileIngestRequest):
     try:
         logger.info(f"📄 Ingesting single file: {payload.file_path}")
+        # Configure custom file extractors to ensure JSON and XML are parsed correctly
+        file_extractor = {
+            ".json": JSONReader(),
+            ".xml": CustomXmlReader()
+        }
         reader_kwargs = {
             "bucket": GCS_BUCKET,
-            "key": payload.file_path
+            "key": payload.file_path,
+            "file_extractor": file_extractor
         }
 
         if CREDENTIALS_PATH and os.path.exists(CREDENTIALS_PATH):
