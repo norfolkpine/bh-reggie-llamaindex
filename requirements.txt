@@ -5,6 +5,7 @@ google-cloud-secret-manager
 google-cloud-storage
 llama-index
 llama-index-readers-gcs
+llama-index-readers-json
 llama-index-embeddings-openai
 llama-index-vector-stores-postgres
 tqdm

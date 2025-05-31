@@ -11,6 +11,17 @@ Built with:
 
 ---
 
+## 📋 Supported Document Types
+
+This service supports a variety of document types for ingestion, including:
+- Standard formats like PDF, DOCX, PPTX, TXT, CSV, Markdown (handled by LlamaIndex's default readers).
+- Enhanced support for JSON documents (`.json`) using `JSONReader`.
+- Custom parsing for XML documents (`.xml`) to extract all text content.
+
+The system leverages LlamaIndex's `file_extractor` mechanism, allowing for future extensions to support additional custom document parsers.
+
+---
+
 ## ⚙️ Local Development Setup
 
 1. **Clone the repo**
@@ -210,7 +221,7 @@ Test ingestion with curl:
 curl -X POST http://localhost:8080/ingest-file \
   -H "Content-Type: application/json" \
   -d '{
-    "file_path": "test/file.pdf",
+    "file_path": "test/file.pdf", # Other supported types include .json, .xml, .docx, .txt, etc.
     "vector_table_name": "your-kb-id"
   }'
 ```
@@ -221,7 +232,7 @@ Or test ingestion from Python:
 import requests
 
 res = requests.post("http://localhost:8080/ingest-file", json={
-    "file_path": "test/file.pdf",
+    "file_path": "test/file.pdf", # Other supported types include .json, .xml, .docx, .txt, etc.
     "vector_table_name": "your-kb-id"
 })
 print(res.json())
